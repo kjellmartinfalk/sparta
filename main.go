@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -182,6 +183,16 @@ func templateFuncs() template.FuncMap {
 				panic(fmt.Sprintf("Error extracting JSON field: %v", err))
 			}
 			return val
+		},
+		"b64enc": func(v string) string {
+			return base64.StdEncoding.EncodeToString([]byte(v))
+		},
+		"b64dec": func(v string) string {
+			data, err := base64.StdEncoding.DecodeString(v)
+			if err != nil {
+				panic(fmt.Sprintf("Error decoding base64: %v", err))
+			}
+			return string(data)
 		},
 	}
 }
