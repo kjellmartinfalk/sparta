@@ -31,11 +31,17 @@ you can run the following
 $ sparta --template template/template.yaml --config version-1.yaml --config version-2.yaml 
 ```
 
-which "would" output the following
+which "would" output the following to stdout
 
 ```yaml
 my_app:
   database_url: tcp://192.168.0.1
   database_user: user
   database_password: ******
+```
+
+additionally you can run 
+```bash
+$ sparta --template template.yaml --config config.yaml --output ./output # will be written to /output/config.yaml
+$ sparta --template templates/ --config config.yaml
 ```
