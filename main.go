@@ -17,6 +17,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var version = "0.0.0"
+
 type Config struct {
 	Values     map[string]interface{} `yaml:"values"`
 	SSMParams  map[string]string      `yaml:"ssm_params"`
@@ -28,19 +30,28 @@ func main() {
 		templatePath string
 		configFiles  []string
 		outputDir    string
+		showVersion  bool
 	)
 
 	rootCmd := &cobra.Command{
 		Use:   "tmpl",
 		Short: "A template processor with AWS SSM integration",
 		RunE: func(cmd *cobra.Command, args []string) error {
+
+			if showVersion {
+				fmt.Printf("tmpl version %s\n", version)
+				return nil
+			}
+
 			return processTemplate(templatePath, configFiles, outputDir)
+
 		},
 	}
 
 	rootCmd.Flags().StringVarP(&templatePath, "template", "t", "", "Path to template file or directory")
 	rootCmd.Flags().StringArrayVarP(&configFiles, "config", "c", []string{}, "Path to config files")
 	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory (if not specified, outputs to stdout)")
+	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 
 	rootCmd.MarkFlagRequired("template")
 
@@ -80,10 +91,10 @@ func loadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Initialize maps if they're nil
 	if config.Values == nil {
 		config.Values = make(map[string]interface{})
 	}
+
 	if config.SSMParams == nil {
 		config.SSMParams = make(map[string]string)
 	}
