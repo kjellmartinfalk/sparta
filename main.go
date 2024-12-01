@@ -174,14 +174,7 @@ func extractJSONField(jsonStr string, path string) (interface{}, error) {
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"jsonField": func(jsonStr string, path string) (interface{}, error) {
-			val, err := extractJSONField(jsonStr, path)
-			if err != nil {
-				return nil, err
-			}
-			return val, nil
-		},
-		"mustJsonField": func(jsonStr string, path string) interface{} {
+		"jsonField": func(jsonStr string, path string) interface{} {
 			val, err := extractJSONField(jsonStr, path)
 			if err != nil {
 				panic(fmt.Sprintf("Error extracting JSON field: %v", err))
