@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var version = "dev"
+var Version = "dev"
 
 type Config struct {
 	Values     map[string]interface{} `yaml:"values"`
@@ -44,7 +44,7 @@ func main() {
 		Short: "A template processor secrets integrations",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
-				fmt.Printf("sparta version %s\n", version)
+				fmt.Printf("sparta version %s\n", Version)
 				return nil
 			}
 
