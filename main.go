@@ -44,8 +44,12 @@ func main() {
 		Short: "A template processor secrets integrations",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
-				fmt.Printf("tmpl version %s\n", version)
+				fmt.Printf("sparta version %s\n", version)
 				return nil
+			}
+
+			if templatePath == "" {
+				return fmt.Errorf("template flag is required")
 			}
 			return processTemplate(templatePath, configFiles, outputDir)
 		},
@@ -55,8 +59,6 @@ func main() {
 	rootCmd.Flags().StringArrayVarP(&configFiles, "config", "c", []string{}, "Path to config files")
 	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory (if not specified, outputs to stdout)")
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
-
-	rootCmd.MarkFlagRequired("template")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
