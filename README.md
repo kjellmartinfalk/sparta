@@ -4,17 +4,17 @@
 
 having two different configurations, one called `version_1.yaml`
 ```yaml
-ssm_params:
-  database_config: "/my_app/version_1/database-endpoint" # single value
-  auth_config: "/my_app/version_1/auth-config" # json formatted value
+secrets:
+  database_config: "aws_parameter_store:/my_app/version_1/database-endpoint" # single value
+  auth_config: "aws_parameter_store:/my_app/version_1/auth-config" # json formatted value
 ```
 
 and another called `version_2.yaml`
 
 ```yaml
 ssm_params:
-  database_config: "/my_app/version_2/database-endpoint" # single value
-  auth_config: "/my_app/version_2/auth-config" # json formatted value
+  database_config: "aws_parameter_store:/my_app/version_2/database-endpoint" # single value
+  auth_config: "aws_secret_manager:/my_app/version_2/auth-config" # json formatted value
 ```
 
 with a template called `template.yaml` in `/template` 

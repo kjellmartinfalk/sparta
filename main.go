@@ -12,18 +12,24 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
-var version = "0.0.0"
+var version = "dev"
 
 type Config struct {
 	Values     map[string]interface{} `yaml:"values"`
-	SSMParams  map[string]string      `yaml:"ssm_params"`
+	Secrets    map[string]string      `yaml:"secrets"`
 	ConfigName string
 }
+
+const (
+	awsParameterStorePrefix = "aws_parameter_store:"
+	awsSecretManagerPrefix  = "aws_secret_manager:"
+)
 
 func main() {
 	var (
@@ -35,16 +41,13 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:   "tmpl",
-		Short: "A template processor with AWS SSM integration",
+		Short: "A template processor with AWS secrets integration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			if showVersion {
 				fmt.Printf("tmpl version %s\n", version)
 				return nil
 			}
-
 			return processTemplate(templatePath, configFiles, outputDir)
-
 		},
 	}
 
@@ -62,17 +65,22 @@ func main() {
 }
 
 func processTemplate(templatePath string, configFiles []string, outputDir string) error {
+	awsCfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		return fmt.Errorf("error loading AWS config: %w", err)
+	}
+
 	for _, configFile := range configFiles {
-		config, err := loadConfig(configFile)
+		templateConfig, err := loadConfig(configFile)
 		if err != nil {
 			return fmt.Errorf("error loading config %s: %w", configFile, err)
 		}
 
-		if err := loadSSMParams(config); err != nil {
-			return fmt.Errorf("error loading SSM parameters for config %s: %w", configFile, err)
+		if err := loadSecrets(templateConfig, awsCfg); err != nil {
+			return fmt.Errorf("error loading secrets for config %s: %w", configFile, err)
 		}
 
-		if err := processTemplates(templatePath, config, outputDir); err != nil {
+		if err := processTemplates(templatePath, templateConfig, outputDir); err != nil {
 			return fmt.Errorf("error processing templates with config %s: %w", configFile, err)
 		}
 	}
@@ -94,33 +102,44 @@ func loadConfig(path string) (*Config, error) {
 	if config.Values == nil {
 		config.Values = make(map[string]interface{})
 	}
-
-	if config.SSMParams == nil {
-		config.SSMParams = make(map[string]string)
+	if config.Secrets == nil {
+		config.Secrets = make(map[string]string)
 	}
 
 	config.ConfigName = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	return &config, nil
 }
 
-func loadSSMParams(templateConfig *Config) error {
-	cfg, err := config.LoadDefaultConfig(context.Background())
-	if err != nil {
-		return err
-	}
+func loadSecrets(config *Config, awsCfg aws.Config) error {
+	ssmClient := ssm.NewFromConfig(awsCfg)
+	secretsClient := secretsmanager.NewFromConfig(awsCfg)
 
-	ssmClient := ssm.NewFromConfig(cfg)
+	for name, path := range config.Secrets {
+		switch {
+		case strings.HasPrefix(path, awsParameterStorePrefix):
+			paramPath := strings.TrimPrefix(path, awsParameterStorePrefix)
+			param, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{
+				Name:           aws.String(paramPath),
+				WithDecryption: aws.Bool(true),
+			})
+			if err != nil {
+				return fmt.Errorf("error loading parameter %s: %w", paramPath, err)
+			}
+			config.Values[name] = *param.Parameter.Value
 
-	for name, path := range templateConfig.SSMParams {
-		param, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{
-			Name:           aws.String(path),
-			WithDecryption: aws.Bool(true),
-		})
-		if err != nil {
-			return fmt.Errorf("error loading SSM parameter %s: %w", path, err)
+		case strings.HasPrefix(path, awsSecretManagerPrefix):
+			secretID := strings.TrimPrefix(path, awsSecretManagerPrefix)
+			secret, err := secretsClient.GetSecretValue(context.Background(), &secretsmanager.GetSecretValueInput{
+				SecretId: aws.String(secretID),
+			})
+			if err != nil {
+				return fmt.Errorf("error loading secret %s: %w", secretID, err)
+			}
+			config.Values[name] = *secret.SecretString
+
+		default:
+			return fmt.Errorf("unknown secret provider for %s", path)
 		}
-
-		templateConfig.Values[name] = *param.Parameter.Value
 	}
 
 	return nil
