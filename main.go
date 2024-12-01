@@ -40,8 +40,8 @@ func main() {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "tmpl",
-		Short: "A template processor with AWS secrets integration",
+		Use:   "sparta",
+		Short: "A template processor secrets integrations",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
 				fmt.Printf("tmpl version %s\n", version)
