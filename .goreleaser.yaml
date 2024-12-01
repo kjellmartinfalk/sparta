@@ -8,7 +8,6 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
@@ -40,16 +39,16 @@ changelog:
       - Merge pull request
       - Merge branch
 
-brews:
-  - name: sparta
-    homepage: "https://github.com/kjellmartinfalk/sparta"
-    description: "A template processor with AWS SSM integration"
-    tap:
-      owner: kjellmartinfalk
-      name: homebrew-tap
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
+# brews:
+#   - name: sparta
+#     homepage: "https://github.com/kjellmartinfalk/sparta"
+#     description: "A template processor with AWS SSM integration"
+#     tap:
+#       owner: kjellmartinfalk
+#       name: homebrew-tap
+#     commit_author:
+#       name: goreleaserbot
+#       email: bot@goreleaser.com
 
 checksum:
   name_template: 'checksums.txt'
