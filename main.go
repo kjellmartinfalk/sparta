@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/kjellmartinfalk/sparta/functions"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -52,6 +51,7 @@ func main() {
 			if templatePath == "" {
 				return fmt.Errorf("template flag is required")
 			}
+
 			return processTemplate(templatePath, configFiles, outputDir)
 		},
 	}
@@ -105,6 +105,7 @@ func loadConfig(path string) (*Config, error) {
 	if config.Values == nil {
 		config.Values = make(map[string]interface{})
 	}
+
 	if config.Secrets == nil {
 		config.Secrets = make(map[string]string)
 	}
@@ -148,55 +149,6 @@ func loadSecrets(config *Config, awsCfg aws.Config) error {
 	return nil
 }
 
-func extractJSONField(jsonStr string, path string) (interface{}, error) {
-	var data interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %w", err)
-	}
-
-	parts := strings.Split(path, ".")
-	current := data
-
-	for _, part := range parts {
-		switch v := current.(type) {
-		case map[string]interface{}:
-			if val, ok := v[part]; ok {
-				current = val
-			} else {
-				return nil, fmt.Errorf("field %s not found", part)
-			}
-		case []interface{}:
-			return nil, fmt.Errorf("array indexing not supported yet")
-		default:
-			return nil, fmt.Errorf("invalid path: %s", part)
-		}
-	}
-
-	return current, nil
-}
-
-func templateFuncs() template.FuncMap {
-	return template.FuncMap{
-		"jsonField": func(jsonStr string, path string) interface{} {
-			val, err := extractJSONField(jsonStr, path)
-			if err != nil {
-				panic(fmt.Sprintf("Error extracting JSON field: %v", err))
-			}
-			return val
-		},
-		"b64enc": func(v string) string {
-			return base64.StdEncoding.EncodeToString([]byte(v))
-		},
-		"b64dec": func(v string) string {
-			data, err := base64.StdEncoding.DecodeString(v)
-			if err != nil {
-				panic(fmt.Sprintf("Error decoding base64: %v", err))
-			}
-			return string(data)
-		},
-	}
-}
-
 func processTemplates(path string, config *Config, outputDir string) error {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
@@ -224,9 +176,7 @@ func processTemplateFile(path string, config *Config, outputDir string) error {
 		return err
 	}
 
-	tmpl, err := template.New(filepath.Base(path)).
-		Funcs(templateFuncs()).
-		Parse(string(tmplData))
+	tmpl, err := template.New(filepath.Base(path)).Funcs(functions.TemplateFunctions).Parse(string(tmplData))
 	if err != nil {
 		return err
 	}
