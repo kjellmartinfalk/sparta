@@ -4,16 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/kjellmartinfalk/sparta/functions"
 )
 
-func init() {
-	functions.RegisterFunction("jsonField", jsonField)
-	functions.RegisterFunction("mustJsonField", mustJsonField)
-}
-
-func jsonField(jsonStr string, path string) (interface{}, error) {
+func JsonField(jsonStr string, path string) (interface{}, error) {
 	val, err := extractJSONField(jsonStr, path)
 	if err != nil {
 		return nil, err
@@ -21,7 +14,7 @@ func jsonField(jsonStr string, path string) (interface{}, error) {
 	return val, nil
 }
 
-func mustJsonField(jsonStr string, path string) interface{} {
+func MustJsonField(jsonStr string, path string) interface{} {
 	val, err := extractJSONField(jsonStr, path)
 	if err != nil {
 		panic(fmt.Sprintf("Error extracting JSON field: %v", err))

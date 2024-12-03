@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,27 +9,20 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/kjellmartinfalk/sparta/functions"
+	"github.com/kjellmartinfalk/sparta/functions/secret_providers"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
-var Version = "dev"
+var Version string
 
 type Config struct {
-	Values     map[string]interface{} `yaml:"values"`
-	Secrets    map[string]string      `yaml:"secrets"`
-	ConfigName string
+	Values          map[string]interface{}            `yaml:"values"`
+	Secrets         map[string]string                 `yaml:"secrets"`
+	SecretProviders map[string]map[string]interface{} `yaml:"secret_providers"`
+	ConfigName      string
 }
-
-const (
-	awsParameterStorePrefix = "aws_parameter_store:"
-	awsSecretManagerPrefix  = "aws_secret_manager:"
-)
 
 func main() {
 	var (
@@ -41,7 +34,7 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:   "sparta",
-		Short: "A template processor secrets integrations",
+		Short: "a simple template processor",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
 				fmt.Printf("sparta version %s\n", Version)
@@ -68,18 +61,13 @@ func main() {
 }
 
 func processTemplate(templatePath string, configFiles []string, outputDir string) error {
-	awsCfg, err := config.LoadDefaultConfig(context.Background())
-	if err != nil {
-		return fmt.Errorf("error loading AWS config: %w", err)
-	}
-
 	for _, configFile := range configFiles {
 		templateConfig, err := loadConfig(configFile)
 		if err != nil {
 			return fmt.Errorf("error loading config %s: %w", configFile, err)
 		}
 
-		if err := loadSecrets(templateConfig, awsCfg); err != nil {
+		if err := loadSecrets(templateConfig); err != nil {
 			return fmt.Errorf("error loading secrets for config %s: %w", configFile, err)
 		}
 
@@ -106,6 +94,10 @@ func loadConfig(path string) (*Config, error) {
 		config.Values = make(map[string]interface{})
 	}
 
+	if config.SecretProviders == nil {
+		config.SecretProviders = make(map[string]map[string]interface{})
+	}
+
 	if config.Secrets == nil {
 		config.Secrets = make(map[string]string)
 	}
@@ -114,36 +106,55 @@ func loadConfig(path string) (*Config, error) {
 	return &config, nil
 }
 
-func loadSecrets(config *Config, awsCfg aws.Config) error {
-	ssmClient := ssm.NewFromConfig(awsCfg)
-	secretsClient := secretsmanager.NewFromConfig(awsCfg)
+var (
+	errMissingSecretProvider       = errors.New("secret identifier is to short, missing provider?")
+	errMissingSecretProviderConfig = errors.New("missing provider config for key ..")
+)
+
+func loadSecrets(config *Config) error {
+	initializedProviders := make(map[string]secrets.SecretFn)
 
 	for name, path := range config.Secrets {
-		switch {
-		case strings.HasPrefix(path, awsParameterStorePrefix):
-			paramPath := strings.TrimPrefix(path, awsParameterStorePrefix)
-			param, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{
-				Name:           aws.String(paramPath),
-				WithDecryption: aws.Bool(true),
-			})
-			if err != nil {
-				return fmt.Errorf("error loading parameter %s: %w", paramPath, err)
-			}
-			config.Values[name] = *param.Parameter.Value
+		secretKey := strings.Split(path, ":")
 
-		case strings.HasPrefix(path, awsSecretManagerPrefix):
-			secretID := strings.TrimPrefix(path, awsSecretManagerPrefix)
-			secret, err := secretsClient.GetSecretValue(context.Background(), &secretsmanager.GetSecretValueInput{
-				SecretId: aws.String(secretID),
-			})
-			if err != nil {
-				return fmt.Errorf("error loading secret %s: %w", secretID, err)
-			}
-			config.Values[name] = *secret.SecretString
-
-		default:
-			return fmt.Errorf("unknown secret provider for %s", path)
+		if len(secretKey) < 2 {
+			return errMissingSecretProvider
 		}
+
+		var providerIdentifier string
+		var providerConfigIdentifier string
+		var secretIdentifier string
+		if len(secretIdentifier) == 3 {
+			providerIdentifier = secretKey[0]
+			providerConfigIdentifier = secretKey[1]
+			secretIdentifier = secretKey[2]
+		}
+
+		providerIdentifier = secretKey[0]
+		secretIdentifier = secretKey[1]
+
+		provider, ok := initializedProviders[providerIdentifier+providerConfigIdentifier]
+		if !ok {
+			providerInitializer, ok := functions.SecretProviders[providerIdentifier]
+			if !ok {
+				return errors.New("missing secret provider " + providerIdentifier)
+			}
+
+			providerConfig := config.SecretProviders[providerConfigIdentifier]
+
+			var err error
+			provider, err = providerInitializer(providerConfig)
+			if err != nil {
+				return err
+			}
+		}
+
+		secret, err := provider(secretIdentifier)
+		if err != nil {
+			return err
+		}
+
+		config.Values[name] = secret
 	}
 
 	return nil
