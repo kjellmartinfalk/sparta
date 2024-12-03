@@ -33,8 +33,9 @@ func main() {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "sparta",
-		Short: "a simple template processor",
+		Use:          "sparta",
+		Short:        "a simple template processor",
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if showVersion {
 				fmt.Printf("sparta version %s\n", Version)
@@ -55,7 +56,6 @@ func main() {
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
