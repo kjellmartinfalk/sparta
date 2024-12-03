@@ -14,6 +14,7 @@ var TemplateFunctions template.FuncMap = template.FuncMap{
 	"mustJsonField": utilities.MustJsonField,
 	"b64enc":        utilities.Base64Encode,
 	"b64dec":        utilities.Base64Decode,
+	"env":           utilities.EnvVariable,
 }
 
 var SecretProviders map[string]secrets.SecretProviderInitFn = map[string]secrets.SecretProviderInitFn{
